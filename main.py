@@ -54,9 +54,47 @@ reload(inspect)
 ################################################################################
 # # Generate data
 
-# %%
-reload(data)
 reload(inspect)
+reload(data)
+
+inspect.inspect_images(
+    [
+        (data.create_dogs, "Dogs"),
+        (data.create_cats, "Cats"),
+        (data.create_gaussian, "Gaussian"),
+    ],
+    key,
+    name ="data_samples"
+)
+
+inspect.visualize_interpolation(
+    source_gen=data.create_gaussian,
+    target_gen=data.create_dogs,
+    n_samples=500,
+    n_trajectories=30,
+    key=random.split(key)[0],
+    name="interpolation_gaussians_to_dogs"
+)
+
+inspect.visualize_interpolation(
+    source_gen=data.create_cats,
+    target_gen=data.create_dogs,
+    n_samples=500,
+    n_trajectories=30,
+    key=random.split(key)[0],
+    name="interpolation_cats_to_dogs"
+)
+
+inspect.visualize_noise_process(
+    *data.create_database(
+        x_gen=data.create_gaussian,
+        y_gen=data.create_dogs,
+        n_samples=5000,
+        key=random.split(key)[0],
+        technique="score_matching"
+    ),
+    name="noise_process_dogs"
+)
 
 
 # %%
