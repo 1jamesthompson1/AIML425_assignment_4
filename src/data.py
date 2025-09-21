@@ -74,15 +74,12 @@ def create_database(x_gen, y_gen, n_samples, key, technique):
     elif technique == "score_matching":
         key_x, key_y, key_t, key_eps = random.split(key, 4)
         y_data = y_gen(n_samples, key_y)
-        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.01, maxval=0.99)  # Avoid t=0,1
+        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.1, maxval=1)
 
-        # Improved noise schedule - Variance Preserving (VP)
-        beta_min = 0.1
-        beta_max = 10.0
-        beta_t = beta_min + t * (beta_max - beta_min)
-        sigma_t = jnp.sqrt(1 - jnp.exp(-beta_t))
+        # TODO: Implement a more complex noise schedule if desired
+        sigma_t = t 
         
-        # Generate proper Gaussian noise
+        # Using x gen as the epsilon as it is noise that is slowly added to the output to get back to the input.
         epsilon = x_gen(n_samples, key_eps)
         x_data = y_data + sigma_t * epsilon
         x_data = jnp.hstack([x_data, t])

@@ -22,8 +22,6 @@ class TrainState(train_state.TrainState):
 class Count(nnx.Variable[nnx.A]):
     pass
 
-
-
 def kl_divergence(mean, logvar):
     '''
     KL divergence between N(mean, var) and N(0, 1)
@@ -66,34 +64,39 @@ def compute_mmd(z, z_prior, sigmas):
 
     return mmd
 
-def sde_loss_fn(params, state, batch, rng, eval_mode, kl_beta=1.0):
-    pass
+def flow_matching_loss(params, state, batch, rng, eval_mode):
+    '''
+    Implement the flow matching loss function.
+    
+    This is from the slide 32.
 
-def ode_loss_fn(params, state, batch, rng, eval_mode, kl_beta=1.0):
-    pass
+    '''
+    model = nnx.merge(state.graphdef, params, state.counts)
+    inputs = batch["input"]
+    true_velocity = batch["target"]
 
-def plot_progress(metrics_history):
-    plt.figure(figsize=(10, 5))
-    plt.plot(
-        metrics_history["train_epochs"],
-        metrics_history["train_loss"],
-        label="Training Loss",
-        alpha=0.7,
-    )
-    plt.plot(
-        metrics_history["val_epochs"],
-        metrics_history["val_loss"],
-        "o-",
-        label="Validation Loss",
-        alpha=0.7,
-    )
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training Progress")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    predicted_velocity = model(inputs, deterministic=eval_mode)
 
+    loss = jnp.mean(jnp.square(predicted_velocity - true_velocity))
+
+    return loss, model.counts, (), (loss, 0.0)
+
+def score_matching_loss(params, state, batch, rng, eval_mode):
+    '''
+    
+    '''
+    model = nnx.merge(state.graphdef, params, state.counts)
+    predicted_score = model(batch["input"], deterministic=eval_mode)
+    true_score = batch["target"]
+
+    # Score matching loss
+    reconstruction_loss = jnp.mean((predicted_score - true_score) ** 2)
+    regularization_loss = 0.0
+
+    counts = nnx.state(model, Count)
+    
+    total_loss = reconstruction_loss + regularization_loss
+    return total_loss, counts, (reconstruction_loss, regularization_loss)
 
 def train_model(
     state,
@@ -105,8 +108,6 @@ def train_model(
     minibatch_size,
     eval_every,
     key,
-    visualize=True,
-    console: Console | None = None,
 ):
     metrics_history = {
         "train_epochs": [],
@@ -172,8 +173,6 @@ def train_model(
             )
 
             epoch_times = []
-            if epoch > 0 and visualize:
-                plot_progress(metrics_history)
 
         epoch_times.append(time.time() - epoch_start_time)
 
@@ -192,7 +191,7 @@ def train_model(
 @partial(jax.jit,static_argnames=["loss_fn"])
 def train_step(state, loss_fn, batch, rng):
     def local_fn(params, rng):
-        loss, _, counts, parts = loss_fn(params, state, batch, rng, False)
+        loss, counts, parts = loss_fn(params, state, batch, rng, False)
         return loss, (counts, parts)
 
     (grads, (counts, parts)) = jax.grad(local_fn, has_aux=True)(state.params, rng)
@@ -203,7 +202,7 @@ def train_step(state, loss_fn, batch, rng):
 
 @partial(jax.jit,static_argnames=["loss_fn"])
 def eval_step(state, loss_fn, batch, rng):
-    loss, _, _, parts = loss_fn(state.params, state, batch, rng, True)
+    loss, _, parts = loss_fn(state.params, state, batch, rng, True)
     return {"loss": loss, "reconstruction_loss": parts[0], "regularization_loss": parts[1]}
 
 
@@ -213,16 +212,14 @@ def do_complete_experiment(
     valid_batches,
     model_class,
     loss_fn,
+    output_dim,
     model_kwargs={},
     learning_rate=0.005,
     minibatch_size=256,
     num_epochs=50,
+    hidden_dims=[128, 128, 128],
     eval_every=5,
-    encoder_arch=[1000, 1000, 1000],
-    decoder_arch=[1000, 1000, 1000],
-    latent_dim=20,
-    layernorm=False,
-    dropout=0.0,
+    dropout_rate=0.0,
     activation=nnx.relu,
 ):
     console = Console(force_jupyter=True)
@@ -232,12 +229,11 @@ def do_complete_experiment(
 
     model = model_class(
         rngs=nnx.Rngs(42),
-        input=input_dim,
-        encoder_arch=encoder_arch,
-        decoder_arch=decoder_arch,
-        latent_dim=latent_dim,
-        dropout=dropout,
-        layernorm=layernorm,
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dims=hidden_dims,
+        dropout_rate=dropout_rate,
+        activation=activation,
         **model_kwargs,
     )
 
@@ -259,15 +255,13 @@ def do_complete_experiment(
     # Create compact rich tables
     model_table = Table(title="Model", show_header=False, box=None)
     model_table.add_row("Input Dim", str(input_dim))
-    model_table.add_row("Encoder arch", str(encoder_arch))
-    model_table.add_row("Decoder arch", str(decoder_arch))
-    model_table.add_row("Latent Dim", str(latent_dim))
+    model_table.add_row("Output Dim", str(output_dim))
+    model_table.add_row("Hidden Dims", str(hidden_dims))
     model_table.add_row(
         "Parameters", f"{sum(x.size for x in jax.tree_util.tree_leaves(params)):,}"
     )
     model_table.add_row("Activation", activation.__name__)
-    model_table.add_row("LayerNorm", str(layernorm))
-    model_table.add_row("Dropout", str(dropout))
+    model_table.add_row("Dropout", str(dropout_rate))
 
     train_table = Table(title="Training", show_header=False, box=None)
     train_table.add_row("Learning Rate", str(learning_rate))
@@ -295,8 +289,6 @@ def do_complete_experiment(
         eval_every=eval_every,
         minibatch_size=minibatch_size,
         key=key,
-        visualize=False,
-        console=console,
     )
 
     experiment_time = time.time() - experiment_start_time

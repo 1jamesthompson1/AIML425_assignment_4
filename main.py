@@ -99,40 +99,65 @@ inspect.visualize_noise_process(
 
 # %%
 
-################################################################################
+# %% [markdown]
 ################################################################################
 
 # ------------ SDE Gaussian to dogs -----------------
-# %% [markdown]
+
 ################################################################################
-# # Train a SDE model to convert Gaussian noise to dog images
+# # Train SDE model to go from Gaussian to dogs
+# This is trained using the score matching loss function.
 
 # %%
+# Generating training and validation data
 reload(train)
 reload(data)
 reload(model)
 reload(inspect)
+train_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_gaussian,
+        y_gen=data.create_dogs,
+        n_samples=10000,
+        key=random.split(key)[0],
+        technique="score_matching"
+    ),
+)
+
+valid_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_gaussian,
+        y_gen=data.create_dogs,
+        n_samples=2000,
+        key=random.split(key)[1],
+        technique="score_matching"
+    ),
+)
 
 sde_trained_model, sde_history = train.do_complete_experiment(
     key,
     train_batches,
     valid_batches,
     model_class=model.SDE,
-    loss_fn=partial(
-        train.sde_loss_fn,
-        kl_beta=0.65
-    ),
+    loss_fn=train.score_matching_loss,
+    output_dim=2,
     learning_rate=0.001,
     minibatch_size=512,
-    latent_dim=32,
-    encoder_arch=[1000, 1000, 1000, 500 ],
-    decoder_arch=[500, 1000, 1000, 1000],
-    num_epochs=1000,
     eval_every=20,
-    dropout=0.1, 
 )
 
 inspect.plot_training_history(sde_history, 'sde-training-history')
+
+# %%
+inspect.visualize_model_generation(
+    sde_trained_model,
+    source_gen=data.create_gaussian,
+    n_samples=500,
+    key=random.split(key)[0],
+    name="sde-generation-gaussians-to-dogs"
+)
 # %% [markdown]
 # ## Understand the performance of the model
 
