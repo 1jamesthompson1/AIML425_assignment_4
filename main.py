@@ -2,7 +2,7 @@
 # # AIML 425 - Assignment 3
 # ## Problem 2: Variational Auto Encoders and Auto Encoders
 
-# This notebook is provided for ease of use for marking. However it sohuld be noted that the development was conducted with the notebook as script percent format. The assignment repository can be found at [my gitea instance](https://gitea.james-server.duckdns.org/james/AIML425_assignment_4)  
+# This notebook is provided for ease of use for marking. However it should be noted that the development was conducted with the notebook as script percent format. The assignment repository can be found at [my gitea instance](https://gitea.james-server.duckdns.org/james/AIML425_assignment_4)  
 # 
 # Most of the interesting good stuff is in the `src/` directory this file just runs the experiments and call the implementations.
 
@@ -46,13 +46,11 @@ reload(train)
 reload(data)
 reload(inspect)
 
-################################################################################
+# %%
 ################################################################################
 
 # ------------ Data generation -----------------
-# %% [markdown]
 ################################################################################
-# # Generate data
 
 reload(inspect)
 reload(data)
@@ -66,6 +64,10 @@ inspect.inspect_images(
     key,
     name ="data_samples"
 )
+
+# %%
+reload(data)
+reload(inspect)
 
 inspect.visualize_interpolation(
     source_gen=data.create_gaussian,
@@ -144,26 +146,26 @@ sde_trained_model, sde_history = train.do_complete_experiment(
     loss_fn=train.score_matching_loss,
     output_dim=2,
     learning_rate=0.001,
-    minibatch_size=512,
-    eval_every=20,
+    num_epochs=100,
 )
 
 inspect.plot_training_history(sde_history, 'sde-training-history')
 
 # %%
+reload(inspect)
 inspect.visualize_model_generation(
     sde_trained_model,
     source_gen=data.create_gaussian,
+    target_gen=data.create_dogs,
     n_samples=500,
-    key=random.split(key)[0],
+    key=random.split(key)[1],
     name="sde-generation-gaussians-to-dogs"
 )
-# %% [markdown]
-# ## Understand the performance of the model
 
 # %%
-# Visualizing the mapping from Gaussian to dog images
-reload(inspect)
+# Inspect the training data
+
+
 
 
 ################################################################################

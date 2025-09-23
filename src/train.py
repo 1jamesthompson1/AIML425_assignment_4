@@ -22,48 +22,6 @@ class TrainState(train_state.TrainState):
 class Count(nnx.Variable[nnx.A]):
     pass
 
-def kl_divergence(mean, logvar):
-    '''
-    KL divergence between N(mean, var) and N(0, 1)
-
-    mean: (n_batch, latent_dim)
-    logvar: (n_batch, latent_dim)
-    
-    Computes KL divergence for each element in the batch and sums over latent dimensions. Can use the analytical form of KL.
-    
-    returns: (n_batch,) KL divergence for each element in the batch
-    
-    '''
-    return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
-
-def compute_mmd(z, z_prior, sigmas):
-    """Compute the Maximum Mean Discrepancy (MMD) between two sets of samples.
-
-    Args:
-        z: Samples from the model's latent space, shape (n_samples, latent_dim).
-        z_prior: Samples from the prior distribution, shape (n_samples, latent_dim).
-        sigmas: List or array of bandwidths for the RBF kernel.
-
-    Returns:
-        MMD value (scalar).
-    """
-    def rbf_kernel(x, y, sigma):
-        x_norm = jnp.sum(x ** 2, axis=1).reshape(-1, 1)
-        y_norm = jnp.sum(y ** 2, axis=1).reshape(1, -1)
-        cross_term = jnp.dot(x, y.T)
-        dist = x_norm + y_norm - 2 * cross_term
-        return jnp.exp(-dist / (2 * sigma ** 2))
-
-    mmd = 0.0
-    for sigma in sigmas:
-        k_zz = rbf_kernel(z, z, sigma)
-        k_pp = rbf_kernel(z_prior, z_prior, sigma)
-        k_zp = rbf_kernel(z, z_prior, sigma)
-
-        mmd += jnp.mean(k_zz) + jnp.mean(k_pp) - 2 * jnp.mean(k_zp)
-
-    return mmd
-
 def flow_matching_loss(params, state, batch, rng, eval_mode):
     '''
     Implement the flow matching loss function.
@@ -217,7 +175,7 @@ def do_complete_experiment(
     learning_rate=0.005,
     minibatch_size=256,
     num_epochs=50,
-    hidden_dims=[128, 128, 128],
+    hidden_dims=[256, 256, 256],
     eval_every=5,
     dropout_rate=0.0,
     activation=nnx.relu,

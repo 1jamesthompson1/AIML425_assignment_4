@@ -74,16 +74,17 @@ def create_database(x_gen, y_gen, n_samples, key, technique):
     elif technique == "score_matching":
         key_x, key_y, key_t, key_eps = random.split(key, 4)
         y_data = y_gen(n_samples, key_y)
-        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.1, maxval=1)
+        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.001, maxval=1)
 
         # TODO: Implement a more complex noise schedule if desired
-        sigma_t = t 
+        sigma_min, sigma_max = 0.01, 1.0
+        sigma_t = sigma_min * (sigma_max / sigma_min) ** t
         
         # Using x gen as the epsilon as it is noise that is slowly added to the output to get back to the input.
         epsilon = x_gen(n_samples, key_eps)
         x_data = y_data + sigma_t * epsilon
         x_data = jnp.hstack([x_data, t])
-        return x_data, -epsilon / (sigma_t**2)
+        return x_data, (y_data - x_data[:, :2])
     
     else:
         raise ValueError(f"Unknown technique: {technique}")

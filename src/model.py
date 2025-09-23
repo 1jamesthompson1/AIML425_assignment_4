@@ -30,7 +30,7 @@ class MLP(nnx.Module):
         
 class SDE(MLP):
 
-    def generate(self, source_gen, n_samples, key, dt=0.01):
+    def generate(self, z, n_samples, key, dt=0.01):
         '''
         Generate samples from the learned SDE model starting from source_gen samples.
 
@@ -41,13 +41,17 @@ class SDE(MLP):
             A JAX array of shape (n_samples, 2) representing generated samples.
         '''
 
-        # Generate initial samples
-        z = source_gen(n_samples, key)
-
         # Sample from the SDE
         for step in range(int(1/dt)):
+            key , noise_key = random.split(key)
             t = jnp.ones((n_samples, 1)) * (1 - step * dt)
 
-            z = z + (-t**2 * self(jnp.hstack([z, t]), deterministic=True)) * dt + t * jnp.sqrt(dt) * random.normal(key, shape=z.shape)
+            sigma_min, sigma_max = 0.01, 1.0
+            sigma_t = sigma_min * (sigma_max / sigma_min) ** t
+            model = self(jnp.hstack([z, t]), deterministic=True)
+            score = (1 / sigma_t**2) * model
+            noise = random.normal(noise_key, shape=z.shape)
+
+            z = z + sigma_t**2 * score * dt + sigma_t * jnp.sqrt(dt) * noise
 
         return z
