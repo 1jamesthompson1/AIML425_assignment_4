@@ -37,7 +37,9 @@ def flow_matching_loss(params, state, batch, rng, eval_mode):
 
     loss = jnp.mean(jnp.square(predicted_velocity - true_velocity))
 
-    return loss, model.counts, (), (loss, 0.0)
+    counts = nnx.state(model, Count)
+
+    return loss, counts, (loss, 0.0)
 
 def score_matching_loss(params, state, batch, rng, eval_mode):
     '''

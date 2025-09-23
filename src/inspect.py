@@ -284,13 +284,13 @@ def visualize_model_generation(model, source_gen, target_gen, n_samples, key, na
         name: Name for saving the plot
     '''
     noise_samples = source_gen(n_samples, key)
-    generated_samples = model.generate(noise_samples, n_samples, key=key, dt=0.001)
+    generated_samples = model.generate(noise_samples, key=key, dt=0.001)
 
     target_samples = target_gen(n_samples, key)
 
     plt.figure(figsize=(8, 8))
     plt.scatter(generated_samples[:, 0], generated_samples[:, 1], alpha=0.6, c='green', s=10)
-    plt.scatter(target_samples[:, 0], target_samples[:, 1], alpha=0.3, c='red', s=10)
+    plt.scatter(target_samples[:, 0], target_samples[:, 1], alpha=0.1, c='yellow', s=10)
     plt.scatter(noise_samples[:, 0], noise_samples[:, 1], alpha=0.1, c='blue', s=10)
     plt.xlabel('X1')
     plt.ylabel('X2')

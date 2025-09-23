@@ -111,7 +111,6 @@ inspect.visualize_noise_process(
 # This is trained using the score matching loss function.
 
 # %%
-# Generating training and validation data
 reload(train)
 reload(data)
 reload(model)
@@ -159,112 +158,133 @@ inspect.visualize_model_generation(
     target_gen=data.create_dogs,
     n_samples=500,
     key=random.split(key)[1],
-    name="sde-generation-gaussians-to-dogs"
+    name="sde-generation"
 )
 
-# %%
-# Inspect the training data
 
 
 
-
-################################################################################
+# %% [markdown]
 ################################################################################
 
 # ------------ ODE from Gaussian to dogs -----------------
-# %% [markdown]
-# # Train an ODE model
-################################################################################
 ################################################################################
 
+# # Train an ODE model
 # %%
 reload(train)
 reload(data)
 reload(model)
 reload(inspect)
+train_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_gaussian,
+        y_gen=data.create_dogs,
+        n_samples=10000,
+        key=random.split(key)[0],
+        technique="linear_interpolation"
+    ),
+)
 
-ode_gaussdogs_trained_model, ode_gaussdogs_history = train.do_complete_experiment(
+valid_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_gaussian,
+        y_gen=data.create_dogs,
+        n_samples=2000,
+        key=random.split(key)[1],
+        technique="linear_interpolation"
+    ),
+)
+
+ode_gaussdog_trained_model, ode_gaussdog_history = train.do_complete_experiment(
     key,
     train_batches,
     valid_batches,
     model_class=model.ODE,
-    model_kwargs={
-        "latent_noise_scale": 0.1
-    },
-    loss_fn=partial(
-        train.ode_loss_fn,
-    ),
+    loss_fn=train.flow_matching_loss,
+    output_dim=2,
     learning_rate=0.001,
-    minibatch_size=64,
-    latent_dim=10,
-    encoder_arch=[1000, 1000, 500],
-    decoder_arch=[500, 1000, 1000],
-    num_epochs=500,
-    eval_every=10,
-    dropout=0.1,
+    num_epochs=100,
 )
 
-inspect.plot_training_history(ode_gaussdogs_history, name='ode-gaussdogs-training-history')
-
-# %% [markdown]
-# ## Understand the performance of the model
+inspect.plot_training_history(ode_gaussdog_history, 'ode-gaussdog-training-history')
 
 # %%
-# Visualizing the mapping from Gaussian to dog images
 reload(inspect)
+inspect.visualize_model_generation(
+    ode_gaussdog_trained_model,
+    source_gen=data.create_gaussian,
+    target_gen=data.create_dogs,
+    n_samples=500,
+    key=random.split(key)[1],
+    name="ode-gaussdog-generation"
+)
 
+# %% [markdown]
 ################################################################################
+
+# ------------ ODE from cats to dogs -----------------
+################################################################################
+
+# # Train an ODE model
+# %%
+reload(train)
+reload(data)
+reload(model)
+reload(inspect)
+train_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_cats,
+        y_gen=data.create_dogs,
+        n_samples=10000,
+        key=random.split(key)[0],
+        technique="linear_interpolation"
+    ),
+)
+
+valid_batches = partial(
+    data.create_batches,
+    *data.create_database(
+        x_gen=data.create_cats,
+        y_gen=data.create_dogs,
+        n_samples=2000,
+        key=random.split(key)[1],
+        technique="linear_interpolation"
+    ),
+)
+
+ode_catdog_trained_model, ode_catdog_history = train.do_complete_experiment(
+    key,
+    train_batches,
+    valid_batches,
+    model_class=model.ODE,
+    loss_fn=train.flow_matching_loss,
+    output_dim=2,
+    learning_rate=0.001,
+    num_epochs=100,
+)
+
+inspect.plot_training_history(ode_catdog_history, 'ode-catdog-training-history')
+
+# %%
+reload(inspect)
+inspect.visualize_model_generation(
+    ode_catdog_trained_model,
+    source_gen=data.create_cats,
+    target_gen=data.create_dogs,
+    n_samples=500,
+    key=random.split(key)[1],
+    name="ode-catdog-generation"
+)
+# %% [markdown]
 ################################################################################
 
 # ------------ Compare ODE to SDE -----------------
 
-# %% [markdown]
+################################################################################
+
 # # Compare ODE to SDE
-
-
-
-################################################################################
-################################################################################
-
-# ------------ ODE from cats to dogs -----------------
-# %% [markdown]
-# # Train an ODE model
-################################################################################
-################################################################################
-
-# %%
-reload(train)
-reload(data)
-reload(model)
-reload(inspect)
-
-ode_catsdogs_trained_model, ode_catsdogs_history = train.do_complete_experiment(
-    key,
-    train_batches,
-    valid_batches,
-    model_class=model.ODE,
-    model_kwargs={
-        "latent_noise_scale": 0.1
-    },
-    loss_fn=partial(
-        train.ode_loss_fn,
-    ),
-    learning_rate=0.001,
-    minibatch_size=64,
-    latent_dim=10,
-    encoder_arch=[1000, 1000, 500],
-    decoder_arch=[500, 1000, 1000],
-    num_epochs=500,
-    eval_every=10,
-    dropout=0.1,
-)
-
-inspect.plot_training_history(ode_catsdogs_history, name='ode-catsdogs-training-history')
-
-# %% [markdown]
-# ## Understand the performance of the model
-
-# %%
-# Visualizing the mapping from Gaussian to dog images
-reload(inspect)
 

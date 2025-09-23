@@ -62,14 +62,14 @@ def create_database(x_gen, y_gen, n_samples, key, technique):
 
     if technique == "linear_interpolation":
         key_x, key_y, key_t = random.split(key, 3)
-        x_data = x_gen(n_samples, key_x)
-        y_data = y_gen(n_samples, key_y)
-        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.0, maxval=1.0)
-        x_data = (1 - t) * x_data + t * y_data
+        x_0 = x_gen(n_samples, key_x)
+        x_1 = y_gen(n_samples, key_y)
+        t = random.uniform(key_t, shape=(n_samples, 1), minval=0.0, maxval=0.9999)
+        x_t = (1 - t) * x_0 + t * x_1
 
-        x_data = jnp.hstack([x_data, t])
-        
-        return x_data, x_data - y_data
+        x_data = jnp.hstack([x_t, t])
+
+        return x_data, (x_1 - x_0)
 
     elif technique == "score_matching":
         key_x, key_y, key_t, key_eps = random.split(key, 4)
