@@ -36,6 +36,11 @@ from jax import numpy as jnp
 from importlib import reload
 from functools import partial
 
+# My own code split into modules in the src directory.
+# model has the model definitions
+# train has the training loop and loss functions
+# data has the data generation functions
+# inspect has the visualization functions
 from src import model, train, data, inspect
 
 # This is the main key used for all random operations.
@@ -50,6 +55,7 @@ reload(inspect)
 ################################################################################
 
 # ------------ Data generation -----------------
+
 ################################################################################
 
 reload(inspect)
@@ -62,7 +68,7 @@ inspect.inspect_images(
         (data.create_gaussian, "Gaussian"),
     ],
     key,
-    name ="data_samples"
+    name ="data-samples"
 )
 
 # %%
@@ -75,7 +81,7 @@ inspect.visualize_interpolation(
     n_samples=500,
     n_trajectories=30,
     key=random.split(key)[0],
-    name="interpolation_gaussians_to_dogs"
+    name="interpolation-gaussians-to-dogs"
 )
 
 inspect.visualize_interpolation(
@@ -84,19 +90,22 @@ inspect.visualize_interpolation(
     n_samples=500,
     n_trajectories=30,
     key=random.split(key)[0],
-    name="interpolation_cats_to_dogs"
+    name="interpolation-cats-to-dogs"
 )
 
+# %%
+reload(data)
 inspect.visualize_noise_process(
     *data.create_database(
         x_gen=data.create_gaussian,
         y_gen=data.create_dogs,
         n_samples=5000,
         key=random.split(key)[0],
-        technique="score_matching"
+        technique="score_matching",
     ),
-    name="noise_process_dogs"
+    name="noise-process-dogs"
 )
+
 
 
 # %%
@@ -122,7 +131,7 @@ train_batches = partial(
         y_gen=data.create_dogs,
         n_samples=10000,
         key=random.split(key)[0],
-        technique="score_matching"
+        technique="score_matching",
     ),
 )
 
@@ -133,7 +142,7 @@ valid_batches = partial(
         y_gen=data.create_dogs,
         n_samples=2000,
         key=random.split(key)[1],
-        technique="score_matching"
+        technique="score_matching",
     ),
 )
 
@@ -168,6 +177,7 @@ inspect.visualize_model_generation(
 ################################################################################
 
 # ------------ ODE from Gaussian to dogs -----------------
+
 ################################################################################
 
 # # Train an ODE model

@@ -202,9 +202,9 @@ def visualize_noise_process(x_data, scores, name=None):
     fig, axes = plt.subplots(1, 2, figsize=(15, 6))
     
     # Plot 1: Noisy samples at different noise levels
-    t_steps = [0.2, 0.5, 0.8, 0.95]
-    colors = ['purple', 'orange', 'green', 'blue']
-    
+    t_steps = [0.2, 0.5, 0.9]
+    colors = ['purple', 'orange', 'yellow']
+
     for t_val, color in zip(t_steps, colors):
         mask = jnp.abs(x_data[:, 2].flatten() - t_val) < 0.05  # Select points near t_val
         if jnp.sum(mask) > 0:  # Only plot if we have points at this time
