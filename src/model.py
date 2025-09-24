@@ -41,18 +41,25 @@ class SDE(MLP):
             A JAX array of shape (n_samples, 2) representing generated samples.
         '''
         n_samples = z.shape[0]
-        # Sample from the SDE
-        for step in range(int(1/dt)):
-            key , noise_key = random.split(key)
-            t = jnp.ones((n_samples, 1)) * (1 - step * dt)
+        num_steps = int(1 / dt)
+        t_grid = jnp.linspace(1.0, 0.0, num_steps + 1)
 
-            sigma_min, sigma_max = 0.01, 1.0
-            sigma_t = sigma_min * (sigma_max / sigma_min) ** t
-            model = self(jnp.hstack([z, t]), deterministic=True)
-            score = (1 / sigma_t**2) * model
+        for step in range(num_steps):
+            key, noise_key = random.split(key)
+
+            t_curr = jnp.clip(t_grid[step], 1e-3, 0.999)
+            t = jnp.full((n_samples, 1), t_curr)
+
+            beta_t = 2.0 / jnp.clip(1.0 - t, a_min=1e-3)
+            dt_step = t_grid[step + 1] - t_grid[step]  # negative value for reverse-time integration
+            sqrt_dt = jnp.sqrt(-dt_step)
+
+            score = self(jnp.hstack([z, t]), deterministic=True)
+            drift = -0.5 * beta_t * z - beta_t * score
+            diffusion = jnp.sqrt(beta_t)
+
             noise = random.normal(noise_key, shape=z.shape)
-
-            z = z + sigma_t**2 * score * dt + sigma_t * jnp.sqrt(dt) * noise
+            z = z + drift * dt_step + diffusion * sqrt_dt * noise
 
         return z
 

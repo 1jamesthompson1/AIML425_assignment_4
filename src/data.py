@@ -76,15 +76,21 @@ def create_database(x_gen, y_gen, n_samples, key, technique):
         y_data = y_gen(n_samples, key_y)
         t = random.uniform(key_t, shape=(n_samples, 1), minval=0.001, maxval=1)
 
-        # TODO: Implement a more complex noise schedule if desired
-        sigma_min, sigma_max = 0.01, 1.0
-        sigma_t = sigma_min * (sigma_max / sigma_min) ** t
-        
-        # Using x gen as the epsilon as it is noise that is slowly added to the output to get back to the input.
+        # Variance-preserving noise schedule so that large-t samples approach N(0, I)
+        alpha_bar = jnp.clip((1.0 - t) ** 2, a_min=1e-4, a_max=1.0)
+        sigma_t = jnp.sqrt(1.0 - alpha_bar)
+
         epsilon = x_gen(n_samples, key_eps)
-        x_data = y_data + sigma_t * epsilon
-        x_data = jnp.hstack([x_data, t])
-        return x_data, (y_data - x_data[:, :2])
+
+        clean_component = jnp.sqrt(alpha_bar) * y_data
+        noisy_samples = clean_component + sigma_t * epsilon
+
+        x_data = jnp.hstack([noisy_samples, t])
+
+        variance = jnp.clip(1.0 - alpha_bar, a_min=1e-4)
+        true_score = (clean_component - noisy_samples) / variance
+
+        return x_data, true_score
     
     else:
         raise ValueError(f"Unknown technique: {technique}")

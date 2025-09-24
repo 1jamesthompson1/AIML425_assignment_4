@@ -129,7 +129,7 @@ train_batches = partial(
     *data.create_database(
         x_gen=data.create_gaussian,
         y_gen=data.create_dogs,
-        n_samples=10000,
+        n_samples=100000,
         key=random.split(key)[0],
         technique="score_matching",
     ),
@@ -140,7 +140,7 @@ valid_batches = partial(
     *data.create_database(
         x_gen=data.create_gaussian,
         y_gen=data.create_dogs,
-        n_samples=2000,
+        n_samples=20000,
         key=random.split(key)[1],
         technique="score_matching",
     ),
@@ -153,8 +153,10 @@ sde_trained_model, sde_history = train.do_complete_experiment(
     model_class=model.SDE,
     loss_fn=train.score_matching_loss,
     output_dim=2,
-    learning_rate=0.001,
-    num_epochs=100,
+    learning_rate=0.0001,
+    minibatch_size=512,
+    hidden_dims=[512] * 4,
+    num_epochs=400,
 )
 
 inspect.plot_training_history(sde_history, 'sde-training-history')
@@ -167,7 +169,8 @@ inspect.visualize_model_generation(
     target_gen=data.create_dogs,
     n_samples=500,
     key=random.split(key)[1],
-    name="sde-generation"
+    name="sde-generation",
+    dt=0.0001
 )
 
 
