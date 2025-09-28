@@ -302,3 +302,63 @@ def visualize_model_generation(model, source_gen, target_gen, n_samples, key, dt
         plt.savefig(output_path + "/" + name + ".png")
 
     plt.show()
+
+def compute_mmd(x, y, sigma=[0.1,0.3,1,3,10]):
+    '''
+    Compute the Maximum Mean Discrepancy (MMD) between two sets of samples. This is an biased estimate of the MMD.
+
+    Args:
+        x: JAX array of shape (N, D) representing samples from distribution P.
+        y: JAX array of shape (N, D) representing samples from distribution Q.
+        sigma: scale parameter for the RBF kernel, either a single float or a list of floats for multiple kernels.
+
+    Returns:
+        mmd: The computed MMD value.
+    '''
+    assert x.ndim == 2 and y.ndim == 2, "Inputs must be 2D"
+    assert x.shape[1] == y.shape[1], "x and y must have same feature dim"
+    assert x.shape[0] == y.shape[0], "x and y must have same number of samples"
+
+    def rbf_kernel(a, b, sigma):
+        sq_norms_a = jnp.sum(a**2, axis=1).reshape(-1, 1)
+        sq_norms_b = jnp.sum(b**2, axis=1).reshape(1, -1)
+        sq_dist = sq_norms_a + sq_norms_b - 2 * jnp.dot(a, b.T)
+        return jnp.exp(-sq_dist / (2 * sigma ** 2))
+
+    if jnp.ndim(jnp.array(sigma)) == 0:
+        sigmas = [sigma]
+    else:
+        sigmas = sigma
+
+    mmds = []
+    for s in sigmas:
+        k_xx = rbf_kernel(x, x, s)
+        k_yy = rbf_kernel(y, y, s)
+        k_xy = rbf_kernel(x, y, s)
+        mmd_s = jnp.mean(k_xx) + jnp.mean(k_yy) - 2 * jnp.mean(k_xy)
+        mmds.append(mmd_s)
+
+    return jnp.mean(jnp.stack(mmds))
+
+def generative_performance(source_dist, target_dist, model, num_samples=1000, rng_key=None):
+    '''
+    This will compute the MMD between the source distribution and the model generated distribution as well as the target distribution and the model generated distribution.
+    
+    Args:
+        source_dist: JAX array of shape (N, 28, 28) representing samples from the source distribution.
+        target_dist: JAX array of shape (M, 28, 28) representing samples from the target distribution.
+        model: The trained autoencoder model.
+        num_samples: Number of samples to generate from the model for comparison.
+        rng_key: JAX random key for reproducibility.
+    '''
+    # Generate samples from the model
+    
+    
+    generated_samples = model.generate(source_dist(num_samples, rng_key), key=rng_key, dt=0.001)
+
+    target_samples = target_dist(num_samples, rng_key)
+
+    # Compute MMD between target and generated samples
+    mmd_target = compute_mmd(target_samples, generated_samples)
+
+    return mmd_target

@@ -151,12 +151,12 @@ sde_trained_model, sde_history = train.do_complete_experiment(
     train_batches,
     valid_batches,
     model_class=model.SDE,
-    loss_fn=train.score_matching_loss,
+    loss_fn=train.mse_loss,
     output_dim=2,
     learning_rate=0.0001,
     minibatch_size=512,
     hidden_dims=[512] * 4,
-    num_epochs=400,
+    num_epochs=500,
 )
 
 inspect.plot_training_history(sde_history, 'sde-training-history')
@@ -216,10 +216,10 @@ ode_gaussdog_trained_model, ode_gaussdog_history = train.do_complete_experiment(
     train_batches,
     valid_batches,
     model_class=model.ODE,
-    loss_fn=train.flow_matching_loss,
+    loss_fn=train.mse_loss,
     output_dim=2,
-    learning_rate=0.001,
-    num_epochs=100,
+    learning_rate=0.0001,
+    num_epochs=400,
 )
 
 inspect.plot_training_history(ode_gaussdog_history, 'ode-gaussdog-training-history')
@@ -274,10 +274,10 @@ ode_catdog_trained_model, ode_catdog_history = train.do_complete_experiment(
     train_batches,
     valid_batches,
     model_class=model.ODE,
-    loss_fn=train.flow_matching_loss,
+    loss_fn=train.mse_loss,
     output_dim=2,
-    learning_rate=0.001,
-    num_epochs=100,
+    learning_rate=0.0001,
+    num_epochs=200,
 )
 
 inspect.plot_training_history(ode_catdog_history, 'ode-catdog-training-history')
@@ -295,9 +295,32 @@ inspect.visualize_model_generation(
 # %% [markdown]
 ################################################################################
 
-# ------------ Compare ODE to SDE -----------------
+# ------------ Compare ODE to SDE for Gaussian to dog -----------------
 
 ################################################################################
 
 # # Compare ODE to SDE
 
+reload(inspect)
+
+mmd_sde = inspect.generative_performance(
+    model=sde_trained_model,
+    source_dist=data.create_gaussian,
+    target_dist=data.create_dogs,
+    num_samples=10000,
+    rng_key=random.split(key)[0],
+)
+
+mmd_ode = inspect.generative_performance(
+    model=ode_gaussdog_trained_model,
+    source_dist=data.create_gaussian,
+    target_dist=data.create_dogs,
+    num_samples=10000,
+    rng_key=random.split(key)[0],
+)
+
+print(f"MMD between SDE generated samples and dogs: {mmd_sde:.6f}")
+print(f"MMD between ODE generated samples and dogs: {mmd_ode:.6f}")
+
+
+# %%

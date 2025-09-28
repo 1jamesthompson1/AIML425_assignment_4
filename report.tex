@@ -75,7 +75,19 @@ I will be looking at two models, a Stochastic Differential Equation (SDE) model 
 
 \subsection{Ordinary Differential Equations}
 
+\subsection{Performance comparison}
 
+The end objective of both models is to learn how to take data from one distribution to another iteratively. The loss shows us the difference between the flows. However to understand the performance we really want to know how well it can generate samples. A simple and effective measure is Mean Maximum Discrepancy (MMD) \cite{grettonKernelMethodTwoSample2008} which allows us to compare the generated samples to the real target distribution. The MMD is a measure of the distance between two distributions based on samples from each distribution. It is defined as
+
+\begin{align}
+    \text{MMD}^2(P, Q) &= \mathbb{E}[k(x, x')] + \mathbb{E}[k(y, y')] - 2\mathbb{E}[k(x, y)]\\
+    \text{where } k(x, y) &= \exp\left(-\frac{\|x - y\|^2}{2\sigma^2}\right)\\
+    \text{and } &x, x' \sim P, \quad y, y' \sim Q 
+\end{align}
+
+The only parameter in this is the kernel bandwidth $\sigma$. The higher the sigma the smoother the kernel so focuses on global differences, where lower sigma focuses on local differences.
+
+Other metrics to understand the performance can be learning efficiency and sample efficiency. This means that we can compare how many samples it takes to learn as well as how much compute time it takes to learn. This can be measured in terms of number of epochs or wall clock time.
 
 \section{Experiments}
 
@@ -102,5 +114,52 @@ I completed my work using the following tools:
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
+
+\appendix
+
+\section{Model experiments}
+
+
+\subsection{Setup}
+\begin{table}
+    \caption{Hyperparameters used for each model}
+    \label{tab:hyp}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Hyperparameter & SDE & ODE (Gauss to Dog) & ODE (Cat to Dog) \\
+        \midrule
+        Learning Rate & \multicolumn{2}{c}{0.0001} \\
+        Minibatch Size & 512 & \multicolumn{2}{c}{256} \\
+        Hidden Dims & 512 & \multicolumn{2}{c}{256}\\
+        Hidden Layers & 4 & \multicolumn{2}{c}{3} \\
+        Num Epochs & 500 & \multicolumn{2}{c}{200}\\
+        Optimizer & \multicolumn{3}{c}{Adam} \\
+        Loss Function & \multicolumn{3}{c}{MSE} \\
+        \midrule
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Results}
+The models were trained using the hyperparameters in Table \ref{tab:hyp}. They were trained on a RTX A5000 GPU with a Xeon(R) Gold 6128 CPU. 
+\begin{table}
+    \caption{Training results}
+    \label{tab:mmd}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Result & SDE & ODE (Gauss to Dog) & ODE (Cat to Dog) \\
+        Runtime (seconds) & ? & ? & ? \\
+        MMD & ? & ? & ? \\
+        Best validation loss & ? & ? & ? \\
+        \midrule
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Figures}
+
+
 
 \end{document}

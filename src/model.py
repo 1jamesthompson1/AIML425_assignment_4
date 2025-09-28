@@ -30,13 +30,20 @@ class MLP(nnx.Module):
         
 class SDE(MLP):
 
+    def euler_maruyama_step(self, x, dt, drift, diffusion, noise):
+        '''
+        Perform a single Euler-Maruyama step for the SDE  
+        X_{t+dt} = X_t + f(X_t, t) * dt + g(X_t, t) * sqrt(dt) * noise
+        '''
+        return x + drift * dt + diffusion * jnp.sqrt(jnp.abs(dt)) * noise
+
     def generate(self, z, key, dt=0.01):
         '''
         Generate samples from the learned SDE model starting from source_gen samples.
 
         Args:
             z: Initial samples from the source distribution.
-            dt: Time step for the SDE.
+            dt: Time step for the SDE numerical integration.
         Returns:
             A JAX array of shape (n_samples, 2) representing generated samples.
         '''
@@ -52,18 +59,25 @@ class SDE(MLP):
 
             beta_t = 2.0 / jnp.clip(1.0 - t, a_min=1e-3)
             dt_step = t_grid[step + 1] - t_grid[step]  # negative value for reverse-time integration
-            sqrt_dt = jnp.sqrt(-dt_step)
 
             score = self(jnp.hstack([z, t]), deterministic=True)
             drift = -0.5 * beta_t * z - beta_t * score
             diffusion = jnp.sqrt(beta_t)
 
             noise = random.normal(noise_key, shape=z.shape)
-            z = z + drift * dt_step + diffusion * sqrt_dt * noise
+            z = self.euler_maruyama_step(z, dt=dt_step, drift=drift, diffusion=diffusion, noise=noise)
+            
 
         return z
 
 class ODE(MLP):
+
+    def euler_step(self, x, t, dt):
+        '''
+        Perform a single Euler step for the ODE  
+        X_{t+dt} = X_t + f(X_t, t) * dt
+        '''
+        return x + self(jnp.hstack([x, t]), deterministic=True) * dt
     
     def generate(self, z, key, dt=0.01):
         '''
@@ -71,7 +85,7 @@ class ODE(MLP):
 
         Args:
             z: Initial samples from the source distribution.
-            dt: Time step for the ODE.
+            dt: Time step for the ODE numerical integration.
         Returns:
             A JAX array of shape (n_samples, 2) representing generated samples.
         '''
@@ -84,7 +98,6 @@ class ODE(MLP):
             # Keep t within the training support [0, 1). Avoid exactly t=1.
             t_scalar = min(step * dt, 0.9999)
             t = jnp.ones((z.shape[0], 1)) * t_scalar
-            model = self(jnp.hstack([z, t]), deterministic=True)
-            z = z + model * dt
+            z = self.euler_step(z, t, dt)
 
         return z

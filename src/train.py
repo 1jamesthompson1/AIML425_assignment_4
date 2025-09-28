@@ -22,41 +22,22 @@ class TrainState(train_state.TrainState):
 class Count(nnx.Variable[nnx.A]):
     pass
 
-def flow_matching_loss(params, state, batch, rng, eval_mode):
+def mse_loss(params, state, batch, rng, eval_mode):
     '''
-    Implement the flow matching loss function.
-    
-    This is from the slide 32.
-
+    MSE between predicted and true.
+    Used for both flow matching (ODE) and score matching (SDE).
     '''
     model = nnx.merge(state.graphdef, params, state.counts)
     inputs = batch["input"]
-    true_velocity = batch["target"]
+    truth = batch["target"]
 
-    predicted_velocity = model(inputs, deterministic=eval_mode)
+    predicted = model(inputs, deterministic=eval_mode)
 
-    loss = jnp.mean(jnp.square(predicted_velocity - true_velocity))
+    loss = jnp.mean(jnp.square(predicted - truth))
 
     counts = nnx.state(model, Count)
 
     return loss, counts, (loss, 0.0)
-
-def score_matching_loss(params, state, batch, rng, eval_mode):
-    '''
-    
-    '''
-    model = nnx.merge(state.graphdef, params, state.counts)
-    predicted_score = model(batch["input"], deterministic=eval_mode)
-    true_score = batch["target"]
-
-    # Score matching loss
-    reconstruction_loss = jnp.mean((predicted_score - true_score) ** 2)
-    regularization_loss = 0.0
-
-    counts = nnx.state(model, Count)
-    
-    total_loss = reconstruction_loss + regularization_loss
-    return total_loss, counts, (reconstruction_loss, regularization_loss)
 
 def train_model(
     state,
