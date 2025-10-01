@@ -77,17 +77,19 @@ def create_database(x_gen, y_gen, n_samples, key, technique):
         t = random.uniform(key_t, shape=(n_samples, 1), minval=0.001, maxval=1)
 
         # Variance-preserving noise schedule so that large-t samples approach N(0, I)
-        alpha_bar = jnp.clip((1.0 - t) ** 2, a_min=1e-4, a_max=1.0)
-        sigma_t = jnp.sqrt(1.0 - alpha_bar)
+        # alpha_bar = jnp.clip((1.0 - t) ** 2, a_min=1e-4, a_max=1.0)
+        alpha_t = (1.0 - t) ** 2
+        sigma_t = jnp.sqrt(1.0 - alpha_t)
 
         epsilon = x_gen(n_samples, key_eps)
 
-        clean_component = jnp.sqrt(alpha_bar) * y_data
+        clean_component = jnp.sqrt(alpha_t) * y_data
         noisy_samples = clean_component + sigma_t * epsilon
 
         x_data = jnp.hstack([noisy_samples, t])
 
-        variance = jnp.clip(1.0 - alpha_bar, a_min=1e-4)
+        # variance = jnp.clip(1.0 - alpha_bar, a_min=1e-4)
+        variance = 1.0 - alpha_t
         true_score = (clean_component - noisy_samples) / variance
 
         return x_data, true_score

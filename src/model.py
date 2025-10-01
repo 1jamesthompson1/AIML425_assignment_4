@@ -54,7 +54,8 @@ class SDE(MLP):
         for step in range(num_steps):
             key, noise_key = random.split(key)
 
-            t_curr = jnp.clip(t_grid[step], 1e-3, 0.999)
+            # t_curr = jnp.clip(t_grid[step], 1e-3, 0.999)
+            t_curr = t_grid[step]
             t = jnp.full((n_samples, 1), t_curr)
 
             beta_t = 2.0 / jnp.clip(1.0 - t, a_min=1e-3)
