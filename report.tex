@@ -66,14 +66,57 @@ This document reports the implementation and results of Assignment 4. I implemen
 
 \section{Theory}
 
-I will be looking at two models, a Stochastic Differential Equation (SDE) model and an Ordinary Differential Equation (ODE) model. Both models are generative models that learn a mapping from one distribution to another. The key difference being that the SDE model is score based and stochastic in generation while the ODE model is a normalizing flow model that is deterministic in generation.
+A flow is a continuous transformation that maps data from one distribution through a iterative process of small changes. In generative modeling, flows provide a powerful framework for learning how to transport samples from a source distribution (Gaussian noise) to a complex target distribution (images) over time $t \in [0, 1]$. The key idea is to learn 
 
-\subsection{Flows}
+Flows can be deterministic or stochastic, depending on whether we add random noise during the process. This leads to two main classes of models: Ordinary Differential Equations (ODEs) for deterministic flows, and Stochastic Differential Equations (SDEs) for flows with randomness. The key to both of these approaches is that they are invertible processes, allowing us to generate new samples by reversing the learned transformations.
 
 \subsection{Stochastic Differential Equations}
 
+A Stochastic Differential Equation (SDE) model \cite{songScoreBasedGenerativeModeling2021} adds randomness to the flow through a diffusion process, inspired by Langevin dynamics of particles in a viscous fluid. The general form of an SDE is:
+\begin{equation}
+    dx = a(x, t)dt + b(x, t)dW
+\end{equation}
+where $a(x, t)$ is the drift coefficient (a vector field), $b(x, t)$ is the diffusion coefficient (typically a scalar), and $dW$ represents a Wiener process (Brownian motion).
+
+\subsubsection{Score Matching} The key insight is that the evolution of the probability density $p(x, t)$ is governed by the Fokker-Planck equation:
+\begin{equation}
+    \frac{\partial p(x, t)}{\partial t} = -\nabla_x \cdot (a(x, t)p(x, t)) + \frac{1}{2}\nabla^2_x(b^2(x, t)p(x, t))
+\end{equation}
+The score function $s(x, t) = \nabla_x \log p(x, t)$ represents the gradient of the log-probability density. Its points towards regsion of higher probability. Using this score function, we can reverse the diffusion process.
+
+My implementation uses a variance-preserving noise schedule where clean target data $y$ is corrupted with Gaussian noise $\epsilon$ at time $t$:
+\begin{equation}
+    x_t = \sqrt{\alpha_t}y + \sigma_t\epsilon, \quad \text{where } \alpha_t = (1-t)^2, \; \sigma_t = \sqrt{1 - \alpha_t}
+\end{equation}
+The neural network learns to predict the score function $s_\theta(x_t, t)$ directly, rather than predicting the clean image $y$ and computing the score from it. The training target is:
+\begin{equation}
+    s_{\text{true}} = \frac{\sqrt{\alpha_t}y - x_t}{1 - \alpha_t}
+\end{equation}
+This "predict the difference" approach is more effective than predicting the clean image directly, as the network learns to focus on the correction needed rather than reconstructing the entire signal. During generation, I integrate backward in time from $t=1$ to $t=0$ using the Euler-Maruyama method \cite{burdenNumericalAnalysis2016}:
+\begin{equation}
+    x_{t-dt} = x_t - \frac{\beta_t}{2}(x_t + 2s_\theta(x_t, t))dt + \sqrt{\beta_t dt}\epsilon
+\end{equation}
+where $s_\theta$ is the learned score function and $\beta_t = 2/(1-t)$ is the noise schedule parameter. This process reverses the forward diffusion, guided by the learned score.
 
 \subsection{Ordinary Differential Equations}
+
+An Ordinary Differential Equation (ODE) model \cite{lipmanFlowMatchingGenerative2023} is a deterministic flow without stochastic components. It learns a continuous normalizing flow that transforms one distribution to another via:
+\begin{equation}
+    \frac{dx}{dt} = v_\theta(x, t)
+\end{equation}
+where $v_\theta(x, t)$ is a neural network parameterized velocity field that defines how points move over time.
+
+\subsubsection{Flow Matching} Unlike score-based models, ODE models use flow matching with linear interpolation. Given samples $x_0$ from the source distribution and $x_1$ from the target distribution, we construct training pairs by linear interpolation:
+\begin{equation}
+    x_t = (1-t)x_0 + tx_1
+\end{equation}
+The true velocity field is simply $v(x, t) = x_1 - x_0$, which the neural network learns to predict.
+During generation, you integrate forward in time from $t=0$ to $t=1$ using the Euler method \cite{burdenNumericalAnalysis2016}:
+\begin{equation}
+    x_{t+dt} = x_t + v_\theta(x_t, t) \cdot dt
+\end{equation}
+
+This approach is computationally simpler than SDEs: it doesn't require sampling random noise at each step, making generation deterministic and often faster.
 
 \subsection{Performance comparison}
 
@@ -91,8 +134,25 @@ Other metrics to understand the performance can be learning efficiency and sampl
 
 \section{Experiments}
 
+\subsection{Data}
+The data is generated by sampling from the respective distributions. The SDE models train with 100,000 examples while the ODE models train with only 10,000 examples. At dataset creation time the target is compute using either a interpolation technique (flow matching) or a noise corruption technique (score matching). We can see examples of the data in Figure \ref{fig:individual-data-samples}.
 
+\subsection{Models}
+The model architecture for both the SDE and ODE is similar. They are all feed forward networks with 3-4 hidden layers and ReLU activations. The SDE model is larger due to the less efficient training. Complete hyperparameters are found in the appendix Table \ref{tab:hyp}.
+
+\subsubsection{SDE}
+The SDE model is trained to learn the score function which is used to reverse the diffusion process. A visualization of the data can be found in Figure \ref{fig:noise-process-dogs}. The final performance is satisfactory as judged visually in Figure \ref{fig:sde-generation}. Furthermore comparing the Score field in Figure \ref{fig:sde-score-field} with the true score field in Figure \ref{fig:fig:noise-process-dogs} shows that the model has learned a good approximation of the score function.
+
+\subsubsection{ODE}
+
+The ODE model is trained to learn the Velocity field which is used to model the flow of data from one distribution to another. To understand the data we can visualize the interpolation process in Figure \ref{fig:interpolation-gaussians-to-dogs} for the Gaussian to Dogs  and \ref{fig:interpolation-cats-to-dogs} for Cats to Dogs. For both of the mappings the performance is sufficiently good as can be seen in sample generations in Figures \ref{fig:ode-gaussdog-generation} and \ref{fig:ode-catdog-generation}. The velocity fields learned by the models are good approximation of the true velocity fields as seen in Figures \ref{fig:ode-gaussdog-velocity-field} and \ref{fig:ode-catdog-velocity-field}. Interestingly we can see in the Cat to Dog mapping the score field always points up to the left as that is all the model needs to learn (i.e take point in and move it along the left to right diagonal).
+
+\subsection{SDE vs ODE}
+
+As discussed above we can quantify the performance of the models using MMD. This works by taking samples from the target distribution and comparing them to samples generated by the model. As MMD is a distance metric the lower the better and we can see that the SDE actually performs slightly better than the ODE models in Table \ref{tab:mmd}. It is worth noting however that the ODE model trained using much less data, less training epochs and smaller model size. When the SDE was trained with similar parameters as the ODE it performance was unsatisfactory.
 \section{Conclusion}
+
+In this assignment I implemented and trained both SDE and ODE generative models. Both models were able to learn the mappings they were trained on, with the SDE model performing slightly better in terms of MMD. However the ODE models were much more efficient to train, requiring less data, smaller models and fewer epochs. This highlights the tradeoff between model complexity and training efficiency in generative modeling.
 
 
 \newpage
@@ -142,7 +202,7 @@ I completed my work using the following tools:
 \end{table}
 
 \subsection{Results}
-The models were trained using the hyperparameters in Table \ref{tab:hyp}. They were trained on a RTX A5000 GPU with a Xeon(R) Gold 6128 CPU. 
+The models were trained using the hyperparameters in Table \ref{tab:hyp}. They were trained on a RTX A5000 GPU with a Xeon Gold 6128 CPU. 
 \begin{table}
     \caption{Training results}
     \label{tab:mmd}
@@ -150,15 +210,34 @@ The models were trained using the hyperparameters in Table \ref{tab:hyp}. They w
     \begin{tabular}{lccc}
         \toprule
         Result & SDE & ODE (Gauss to Dog) & ODE (Cat to Dog) \\
-        Runtime (seconds) & ? & ? & ? \\
-        MMD & ? & ? & ? \\
-        Best validation loss & ? & ? & ? \\
+        Runtime (seconds) & 273 & 50 & 24 \\
+        MMD & 0.000866 & 0.001344 & 0.000560 \\
+        Best validation loss & 1.7442 & 0.4384 & 0.1322 \\
         \midrule
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{Figures}
+
+\centerfigure{individual-data-samples}{Samples from the datasets used for training. The values are normalized to [0, 1] and plotted as images to understand the data.}
+
+\subsection{SDE: Gaussian to Dogs}
+
+\centerfigure{noise-process-dogs}{The forward noise process corrupting dog images over time.}
+\centerfigure{sde-generation}{Sample generations of Dogs from Gaussian noise using the SDE model.}
+\centerfigure{sde-score-field}{The score field learned by the SDE model compared to the true score field.}
+
+\subsection{ODE: Gaussian to Dogs}
+
+\centerfigure{interpolation-gaussians-to-dogs}{Linear interpolation between Gaussian noise and Dog images used for training the ODE model.}
+\centerfigure{ode-gaussdog-generation}{Sample generations of Dogs from Gaussian noise using the ODE model.}
+\centerfigure{ode-gaussdog-velocity-field}{The velocity field learned by the ODE model compared to the true velocity field.}
+\subsection{ODE: Cats to Dogs}
+
+\centerfigure{interpolation-cats-to-dogs}{Linear interpolation between Cat images and Dog images used for training the ODE model.}
+\centerfigure{ode-catdog-generation}{Sample generations of Dogs from Cat images using the ODE model.}
+\centerfigure{ode-catdog-velocity-field}{The velocity field learned by the ODE model compared to the true velocity field.}
 
 
 

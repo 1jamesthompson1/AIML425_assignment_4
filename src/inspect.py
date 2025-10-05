@@ -66,6 +66,32 @@ def inspect_images(image_generators, key, n_samples=500, name=None):
 
     plt.show()
 
+def inspect_ind_images(image_generators, key, n, name):
+    '''
+    Generate n images from each generator and plot them in a grid.
+    Each image will plotted as a two pixel image with each dimension being the grayscale value
+    '''
+
+    fig, axes = plt.subplots(len(image_generators), n, figsize=(n * 2, len(image_generators) * 2))
+    
+    images = jnp.array([gen(n, key) for gen, _ in image_generators])
+
+    normalized_samples = (images - jnp.min(images)) / (jnp.max(images) - jnp.min(images) + 1e-8)
+
+    for i in range(len(image_generators)):
+        for j in range(n):
+            axes[i, j].imshow(normalized_samples[i][j].reshape(1, 2), cmap='gray', vmin=0, vmax=1)
+            if j != 0:  # Turn off axis only for non-first columns  
+                axes[i, j].axis('off')
+        axes[i, 0].set_ylabel(image_generators[i][1])
+        axes[i, 0].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+
+    plt.tight_layout()
+
+    if name is not None:
+        plt.savefig(output_path + "/" + name + ".png")
+
+    plt.show()
 
 def visualize_interpolation(source_gen, target_gen, n_samples=500, n_trajectories=20, key=None, name=None):
     '''
@@ -362,3 +388,81 @@ def generative_performance(source_dist, target_dist, model, num_samples=1000, rn
     mmd_target = compute_mmd(target_samples, generated_samples)
 
     return mmd_target
+
+def visualize_velocity_field_ode(ode_model, key, grid_resolution=20, name=None):
+    '''
+    Visualize the velocity field of a trained ODE model.
+    
+    Args:
+        ode_model: Trained ODE model that computes velocity given a point
+        n_samples: Number of random samples to generate
+        grid_resolution: Resolution of the grid for visualization
+        name: Name for saving the plot
+    '''
+    # Generate random samples
+    x_min, x_max, y_min, y_max = -5, 5, -5, 5  # Adjust bounds as needed
+    x_grid = jnp.linspace(x_min, x_max, grid_resolution)
+    y_grid = jnp.linspace(y_min, y_max, grid_resolution)
+    X, Y = jnp.meshgrid(x_grid, y_grid)
+    grid_points = jnp.stack([X.flatten(), Y.flatten()], axis=1)
+    
+    # Compute velocities using the ODE model
+    grid_points_with_t = jnp.hstack([grid_points, jnp.full((grid_points.shape[0], 1), 0.5)])  # Assuming t=0.5 for visualization
+    velocities = jnp.array([ode_model(pt) for pt in grid_points_with_t])
+
+    # Normalize velocities for better visualization
+    velocity_magnitudes = jnp.linalg.norm(velocities, axis=1)
+    max_mag = jnp.max(velocity_magnitudes)
+    normalized_velocities = velocities / max_mag * 0.3  # Scale factor for arrow size
+    
+    # Plot the velocity field
+    plt.figure(figsize=(10, 8))
+    plt.quiver(grid_points[:, 0], grid_points[:, 1], 
+               normalized_velocities[:, 0], normalized_velocities[:, 1], 
+               velocity_magnitudes, cmap='viridis', alpha=0.8, 
+               scale_units='xy', scale=1, width=0.004)
+    plt.title('Velocity Field (ODE)')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    if name is not None:
+        plt.savefig(output_path + "/" + name + ".png", dpi=150, bbox_inches='tight')
+    plt.show()
+
+def visualize_score_field_sde(sde_model, key, grid_resolution=20, name=None):
+    '''
+    Visualize the score field of a trained SDE model.
+    
+    Args:
+        sde_model: Trained SDE model that computes scores given a point
+        n_samples: Number of random samples to generate
+        grid_resolution: Resolution of the grid for visualization
+        name: Name for saving the plot
+    '''
+    # Generate random samples
+    x_min, x_max, y_min, y_max = -5, 5, -5, 5  # Adjust bounds as needed
+    x_grid = jnp.linspace(x_min, x_max, grid_resolution)
+    y_grid = jnp.linspace(y_min, y_max, grid_resolution)
+    X, Y = jnp.meshgrid(x_grid, y_grid)
+    grid_points = jnp.stack([X.flatten(), Y.flatten()], axis=1)
+    
+    # Compute scores using the SDE model
+    grid_points_with_t = jnp.hstack([grid_points, jnp.full((grid_points.shape[0], 1), 0.5)])  # Assuming t=0.5 for visualization
+    scores = jnp.array([sde_model(pt) for pt in grid_points_with_t])
+    
+    # Normalize scores for better visualization
+    score_magnitudes = jnp.linalg.norm(scores, axis=1)
+    max_mag = jnp.max(score_magnitudes)
+    normalized_scores = scores / max_mag * 0.4  # Scale factor for arrow size
+    
+    # Plot the score field
+    plt.figure(figsize=(10, 8))
+    plt.quiver(grid_points[:, 0], grid_points[:, 1], 
+               normalized_scores[:, 0], normalized_scores[:, 1], 
+               score_magnitudes, cmap='viridis', alpha=0.8, 
+               scale_units='xy', scale=1, width=0.004)
+    plt.title('Score Field (SDE)')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    if name is not None:
+        plt.savefig(output_path + "/" + name + ".png", dpi=150, bbox_inches='tight')
+    plt.show()

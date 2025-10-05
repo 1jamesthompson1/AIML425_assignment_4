@@ -71,6 +71,17 @@ inspect.inspect_images(
     name ="data-samples"
 )
 
+inspect.inspect_ind_images(
+    [
+        (data.create_dogs, "Dogs"),
+        (data.create_cats, "Cats"),
+        (data.create_gaussian, "Gaussian"),
+    ],
+    key,
+    n=5,
+    name="individual-data-samples"
+)
+
 # %%
 reload(data)
 reload(inspect)
@@ -173,7 +184,11 @@ inspect.visualize_model_generation(
     dt=0.0001
 )
 
-
+inspect.visualize_score_field_sde(
+    sde_trained_model,
+    name="sde-score-field",
+    key=random.split(key)[1],
+)
 
 
 # %% [markdown]
@@ -235,6 +250,12 @@ inspect.visualize_model_generation(
     name="ode-gaussdog-generation"
 )
 
+inspect.visualize_velocity_field_ode(
+    ode_gaussdog_trained_model,
+    name="ode-gaussdog-velocity-field",
+    key=random.split(key)[1],
+)
+
 # %% [markdown]
 ################################################################################
 
@@ -292,6 +313,13 @@ inspect.visualize_model_generation(
     key=random.split(key)[1],
     name="ode-catdog-generation"
 )
+
+inspect.visualize_velocity_field_ode(
+    ode_catdog_trained_model,
+    name="ode-catdog-velocity-field",
+    key=random.split(key)[1],
+)
+
 # %% [markdown]
 ################################################################################
 
@@ -319,8 +347,14 @@ mmd_ode = inspect.generative_performance(
     rng_key=random.split(key)[0],
 )
 
+mmd_ode_catdog = inspect.generative_performance(
+    model=ode_catdog_trained_model,
+    source_dist=data.create_cats,
+    target_dist=data.create_dogs,
+    num_samples=10000,
+    rng_key=random.split(key)[0],
+)
+
 print(f"MMD between SDE generated samples and dogs: {mmd_sde:.6f}")
 print(f"MMD between ODE generated samples and dogs: {mmd_ode:.6f}")
-
-
-# %%
+print(f"MMD between ODE (cats to dogs) generated samples and dogs: {mmd_ode_catdog:.6f}")
