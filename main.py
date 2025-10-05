@@ -106,6 +106,7 @@ inspect.visualize_interpolation(
 
 # %%
 reload(data)
+reload(inspect)
 inspect.visualize_noise_process(
     *data.create_database(
         x_gen=data.create_gaussian,
