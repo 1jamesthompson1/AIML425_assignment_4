@@ -13,7 +13,7 @@ import os
 # Only run if in Google Colab environment
 if 'google.colab' in str(get_ipython()):
     # Clone your repository (only needed once per session)
-    if not os.path.isdir('src') and len(os.listdir('src')) > 0:
+    if os.path.isdir('src') and len(os.listdir('src')) > 0:
         raise RuntimeError("The src directory already exists and is not empty. Please remove or rename it before running this script.")
 
     
