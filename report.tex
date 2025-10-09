@@ -62,13 +62,13 @@
 
 \section{Introduction}
 
-This document reports the implementation and results of Assignment 4. I look at the differences between the Stochastic Differential Equations and Ordinary Differential Equation models. The SDE model is a score based generative model to learn a mapping from Gaussian noise to dog images. The ODE model is a normalizing flow model that learns a mapping from Gaussian to dogs and cats to dogs. For simplicity I restrict the images to be simple 2D (two pixel) images.
+This document reports the implementation and results of Assignment 4. I look at the differences between the Stochastic Differential Equations (SDE) and Ordinary Differential Equation models (ODE). The SDE model is a score based generative model to learn a mapping from Gaussian noise to dog images. The ODE model is a normalizing flow model that learns a mapping from Gaussian to dogs and cats to dogs. For simplicity I restrict the images to be simple 2D (two pixel) images.
 
 \section{Theory}
 
-A flow is a continuous transformation that maps data from one distribution through an iterative process of small changes. In generative modeling, flows provide a powerful framework for learning how to transport samples from a source distribution (e.g Gaussian noise) to a complex target distribution (cat images) over time $t \in [0, 1]$. The key difference between an SDE and ODE is that one is stochastic and the other deterministic.
+A flow is a continuous transformation from one distribution to another through a process of small changes. In generative modeling, flows provide a powerful framework for learning how to transport samples from a source distribution (e.g Gaussian noise) to a complex target distribution (cat images) over time $t \in [0, 1]$. The key difference between an SDE and ODE is that one is stochastic and the other deterministic.
 
-We are not interested in a transformation of a single point but rather transformations of the distribution of probability mass. A single particle is modeled with a stochastic differential equation:
+We are interested in the transformations of the distribution of probability mass. A single particle is modeled with a stochastic differential equation:
 \begin{equation}
     \label{eq:sde_particle}
     dx = a(x, t)dt + b(x, t)dW
@@ -90,9 +90,13 @@ Equilibrium is reached when the probability density no longer changes with time,
     \label{eq:equilibrium}
     0 = -kT \nabla_x \cdot (p(x, t) \nabla_x \log p(x,t)) + kT \nabla_x^2 p(x, t)
 \end{equation}
-where $k$ is the Boltzmann constant and $T$ is the temperature. This equation describes how particles in a fluid reach thermal equilibrium through a balance of drift and diffusion. From this we can see that the score function $\nabla_x \log p(x,t)$ plays a crucial role in determining the drift that counteracts diffusion.
+where $k$ is the Boltzmann constant and $T$ is the temperature (a tunable hyperparameter). This equation describes how particles in a fluid reach thermal equilibrium through a balance of drift and diffusion. From this we can see the score function $\nabla_x \log p(x,t)$ plays a crucial role in determining the drift that counteracts diffusion.
 
-A Stochastic Differential Equation (SDE) generative model \cite{songScoreBasedGenerativeModeling2021} is a continuous-time generative model that learns the score function of a data distribution. Therefore the network is aiming to learn the score function $s_\theta(x, t) \approx \nabla_x \log p(x,t)$ where $\theta$ are the parameters of the neural network.
+A Stochastic Differential Equation (SDE) generative model \cite{songScoreBasedGenerativeModeling2021} is a continuous-time generative model that learns the score function of a data distribution. 
+\begin{equation}
+s_\theta(x, t) \approx \nabla_x \log p(x,t)
+\end{equation}
+where $\theta$ are the parameters of the neural network.
 
 % maybe move this to the experiment section
 Creating the scores is done using a variance-preserving noise schedule where clean target data $y$ is corrupted with Gaussian noise $\epsilon$ at time $t$:
@@ -100,11 +104,11 @@ Creating the scores is done using a variance-preserving noise schedule where cle
 \begin{equation}
     x_t = \sqrt{\alpha_t}y + \sigma_t\epsilon, \quad \text{where } \alpha_t = (1-t)^2, \; \sigma_t = \sqrt{1 - \alpha_t}
 \end{equation}
-The neural network learns to predict the score function $s_\theta(x_t, t)$ directly, rather than predicting the clean image $y$ and computing the score from it. The training target is:
+The noise schedule is designed such that with $t \in [0, 1]$ the variance will stay constant which allows numerical stability. The neural network learns to predict the score function $s_\theta(x_t, t)$ directly. The training target is:
 \begin{equation}
     s_{\text{true}} = \frac{\sqrt{\alpha_t}y - x_t}{1 - \alpha_t}
 \end{equation}
-This "predict the difference" approach is more effective than predicting the clean image directly, as the network learns to focus on the correction needed rather than reconstructing the entire signal.
+We can then use mean squared error between predicted score and true score to train the network. This "predict the difference" approach is more effective than predicting the clean image directly, as the network learns to focus on the correction needed rather than reconstructing the entire signal.
 
 During generation, I integrate backward in time from $t=1$ to $t=0$ using the Euler-Maruyama method \cite{burdenNumericalAnalysis2016}:
 \begin{equation}
@@ -114,28 +118,33 @@ where $\beta_t = 2/(1-t)$ is the noise schedule parameter. This process reverses
 
 \subsection{Ordinary Differential Equations}
 
-If we take the Fokker-Planck Equation \ref{eq:fokker-planck} and remove the equilibrium Equation \ref{eq:equilibrium} we get a deterministic flow:
-\begin{equation}
-    \frac{\partial p(x, t)}{\partial t} = -\nabla_x \cdot ((a(x)-kT \nabla_x log p(x,t))p(x, t))
-\end{equation}
-From this we see that the Fokker-Planck equations with coefficients $(a(x), \sqrt{2kT})$ (SDE) and $(a(x)-kT \nabla_x log p(x,t), 0)$ (ODE) are equivalent. This means that we can remove the stochastic component and still have the same distribution of particles.
-
-An Ordinary Differential Equation (ODE) model \cite{lipmanFlowMatchingGenerative2023} uses this insight and can generate samples from the target distribution. It learns a continuous normalizing flow that transforms one distribution to another via:
+An alternative method to SDEs is to use an Ordinary Differential Equation (ODE) model. A Flow matching ODE learns a velocity field $v_\theta(x, t)$ that defines a continuous normalizing flow:
 \begin{equation}
     \frac{dx}{dt} = v_\theta(x, t)
 \end{equation}
-where $v_\theta(x, t)$ is a neural network parameterized velocity field that defines how points move over time.
-Unlike score-based models, ODE models uses conditional flow matching with linear interpolation. Given samples $x_0$ from the source distribution and $x_1$ from the target distribution, we construct training pairs by linear interpolation:
+
+Given distributions $p_0(x)$ (source) and $p_1(x)$ (target), we define a target velocity field through interpolation $I_t(x_0, x_1, t)$:
 \begin{equation}
-    x_t = (1-t)x_0 + tx_1
+    x_t = I_t(x_0, x_1, t), \quad v_{\text{target}}(x, t) = \mathbb{E}_{X_0, X_1}[\dot{I}(X_0, X_1, t) | X_t = x]
 \end{equation}
-The true velocity field is simply $v(x, t) = x_1 - x_0$, which the neural network learns to predict.
-During generation, you integrate forward in time from $t=0$ to $t=1$ using the Euler method \cite{burdenNumericalAnalysis2016}:
+where $\dot{I}$ is the time derivative of the interpolation, which is the velocity and is constant magnitude between $t=0$ and $t=1$. 
+
+Computing $v_{\text{target}}(x, t)$ requires evaluating the conditional expectation $\mathbb{E}_{X_0, X_1}[\dot{I}(X_0, X_1, t) | X_t = x]$, which is intractable in practice. We would need to know which pairs $(x_0, x_1)$ produce a given $x_t$ and their probabilities, which requires knowing the full joint distribution. In practice, conditional flow matching is used with linear interpolation.
+\begin{equation}
+    x_t = (1-t)x_0 + tx_1, \quad \dot{I}(x_0, x_1, t) = x_1 - x_0
+\end{equation}
+
+\noindent This gives the practical training loss, which is equivalent to the mean squared error between the predicted and true velocity:
+\begin{equation}
+    \mathcal{L} = \mathbb{E}_t \mathbb{E}_{X_0, X_1} \|v_\theta(X_t, t) - (X_1 - X_0)\|^2
+\end{equation}
+
+The neural network learns to predict the velocity $v(x, t) = x_1 - x_0$ directly, which is simpler than learning score functions. During generation, we integrate forward in time from $t=0$ to $t=1$ using the Euler method \cite{burdenNumericalAnalysis2016}:
 \begin{equation}
     x_{t+dt} = x_t + v_\theta(x_t, t) \cdot dt
 \end{equation}
 
-This approach is computationally simpler than SDEs: it doesn't require sampling random noise at each step, making generation deterministic and often faster. A trade off however is that the random generation in SDEs can help "heal" small errors in the learned score function. Furthermore the ODE isn't really generative but rather a bijection while the SDE is truly generative.
+This flow matching approach is computationally simpler than SDEs, it doesn't require sampling random noise at each step, making generation deterministic and often faster. However, the stochastic sampling in SDEs can help "heal" small errors in the learned score function, potentially improving robustness.
 
 \subsection{Performance comparison} 
 
@@ -163,7 +172,6 @@ The model architecture for both the SDE and ODE is similar. They are all fully c
 The SDE model is trained to learn the score function which is used to reverse the diffusion process. A visualization of the data can be found in Figure \ref{fig:noise-process-dogs}. The final performance is satisfactory as judged visually in Figure \ref{fig:sde-generation}. Furthermore comparing the score field in Figure \ref{fig:sde-score-field} with the true score field in Figure \ref{fig:noise-process-dogs} shows that the model has learned a good approximation of the score function.
 
 \subsubsection{ODE}
-n
 The ODE model is trained to learn the velocity field which models the flow of data from one distribution to another. To understand the training data we can visualize the interpolation process in Figure \ref{fig:interpolation-gaussians-to-dogs} for the Gaussian to Dogs  and \ref{fig:interpolation-cats-to-dogs} for Cats to Dogs. For both of the mappings the performance is sufficiently good as can be seen in sample generations in Figures \ref{fig:ode-gaussdog-generation} and \ref{fig:ode-catdog-generation}. The velocity fields learned by the models are good approximation of the true velocity fields as seen in Figures \ref{fig:ode-gaussdog-velocity-field} and \ref{fig:ode-catdog-velocity-field}. Interestingly we can see in the Cat to Dog mapping the score field always points up to the left as that is all the model needs to learn (i.e take point in and move it along the left to right diagonal). This works because the $t$ is bounded to [0, 1] so the model simply learns the direction of travel not the distance it needs to travel. This is noticeably more complex than the Gaussian to Dog case where it need to learn the direction and distance.
 
 \subsection{SDE vs ODE}
